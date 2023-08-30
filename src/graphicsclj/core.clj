@@ -2,59 +2,72 @@
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
-(defn setup [] (q/frame-rate 60) {:movedir "up", :x 250, :y 250})
+
+
+(defn handle-user-input
+  [state event]
+  (case (:key event)
+    (:w :up) (assoc state :movedir "w")
+    (:s :down) (assoc state :movedir "s")
+    (:a :left) (assoc state :movedir "a")
+    (:d :right) (assoc state :movedir "d")
+    state))
+
+
+(defn setup [] (q/frame-rate 60) {:movedir "a", :x 396, :y 396})
+
 
 (defn move-x
   [movedir x]
-  (if (or (= movedir "right") (= movedir "left"))
-    (case x
-      500 -499
-      0 499
-      1)
-    0))
+  (+ x
+     (case movedir
+       "d" (case x
+             498 -498
+             3)
+       "a" (case x
+             0 498
+             -3)
+       0)))
+
 
 (defn move-y
   [movedir y]
-  (if (or (= movedir "up") (= movedir "down"))
-    (case y
-      500 -499
-      0 499
-      1)
-    0))
+  (+ y
+     (case movedir
+       "w" (case y
+             0 498
+             -3)
+       "s" (case y
+             498 -498
+             3)
+       0)))
+
 
 (defn update-state
   [state]
-  {:movedir "up",
-   :x (+ (:x state) (move-x (:movedir state) (:x state))),
-   :y (+ (:y state) (move-y (:movedir state) (:y state)))})
+  (-> state
+      (update-in [:x] (fn [_x] (move-x (:movedir state) _x)))
+      (update-in [:y] (fn [_y] (move-y (:movedir state) _y)))))
+
 
 (defn draw-state
   [state]
-  ; Clear sketch
   (q/background 24 24 24)
-  (q/fill 173 216 230)
-  ; Draw movement
-  (let [_x (:x state)
-        _y (:y state)
-        x _x
-        y _y]
-    ; Move origin point to the center of the sketch.
-    (q/rect x y 10 10)
-    ;(q/with-translation [(/ (q/width) 2) (/ (q/height) 2)] (q/rect x y 10 10))
-  ))
+  (q/fill 204 102 230)
+  (q/rect (:x state) (:y state) 10 10)
+  (q/fill 102 204 230)
+  (q/ellipse 102 304 10 10))
+
+
 
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (q/defsketch graphicsclj
-             :title "You spin my circle right round"
+             :title "Snake"
              :size [500 500]
-             ; setup function called only once, during sketch initialization.
              :setup setup
-             ; update-state is called on each iteration before draw-state.
              :update update-state
              :draw draw-state
+             :key-pressed handle-user-input
              :features [:keep-on-top]
-             ; This sketch uses functional-mode middleware.
-             ; Check quil wiki for more info about middlewares and particularly
-             ; fun-mode.
              :middleware [m/fun-mode])
