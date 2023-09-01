@@ -6,18 +6,19 @@
 (def ^:const bodyWidth 10)
 
 
-(declare move-x
-         move-y
+(declare move-snake
          rand-pos-food
          add-food-when-no-food
          check-for-food-eaten
-         detect-collision)
+         detect-collision
+         move-x
+         move-y)
 
 
 (defn setup
   []
   (q/frame-rate 60)
-  {:foods [], :score 0, :movedir "a", :x 396, :y 396})
+  {:foods [], :score 0, :movedir "a", :bodyParts [{:x 396, :y 396}]})
 
 
 (defn handle-user-input
@@ -33,17 +34,18 @@
 (defn update-state
   [state]
   (-> state
+      move-snake
       (update-in [:foods] add-food-when-no-food)
-      check-for-food-eaten
-      (update-in [:x] (fn [_x] (move-x (:movedir state) _x)))
-      (update-in [:y] (fn [_y] (move-y (:movedir state) _y)))))
+      check-for-food-eaten))
 
 
 (defn draw-state
   [state]
   (q/background 24 24 24)
   (q/fill 255 165 0)
-  (q/rect (:x state) (:y state) bodyWidth bodyHeight)
+  (println (:bodyParts state))
+  (doseq [bodyPart (:bodyParts state)]
+    (q/rect (:x bodyPart) (:y bodyPart) bodyWidth bodyHeight))
   (q/fill 255 255 255)
   (q/text-size 20)
   (q/text (str (:score state)) 15 30)
@@ -79,6 +81,16 @@
   [{bb1x :x, bb1y :y} {bb2x :x, bb2y :y}]
   (and (and (>= (+ bodyWidth bb1x) bb2x) (>= (+ bb2x bodyWidth) bb1x))
        (and (>= (+ bodyHeight bb1y) bb2y) (>= (+ bb2y bodyHeight) bb1y))))
+
+
+(defn move-snake
+  [state]
+  (assoc state
+    :bodyParts (conj (let [head (first (:bodyParts state))]
+                       (assoc head
+                         :x (move-x (:moveDir state) (:x head))
+                         :y (move-y (:moveDir state) (:y head))))
+                     (rest (:bodyParts state)))))
 
 
 (defn move-x
