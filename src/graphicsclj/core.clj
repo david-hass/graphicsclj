@@ -2,14 +2,16 @@
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
-(def ^:const bodyHeight 10)
-(def ^:const bodyWidth 10)
+(def ^:const bodyHeight 12)
+(def ^:const bodyWidth 12)
 
 
 (declare move-snake
-         rand-pos-food
+         create-rand-pos-food
          add-food-when-no-food
-         check-for-food-eaten
+         eat-food
+         increase-score
+         append-body-part
          detect-collision
          move-x
          move-y)
@@ -18,7 +20,11 @@
 (defn setup
   []
   (q/frame-rate 60)
-  {:foods [], :score 0, :movedir "a", :bodyParts [{:x 396, :y 396}]})
+  {:food nil,
+   :score 0,
+   :movedir "a",
+   :posTracking [],
+   :bodyParts [{:x 396, :y 396}]})
 
 
 (defn handle-user-input
@@ -34,47 +40,50 @@
 (defn update-state
   [state]
   (-> state
-      move-snake
-      (update-in [:foods] add-food-when-no-food)
-      check-for-food-eaten))
+      (update-in [:food] add-food-when-no-food)
+      ;((fn [x] (println x) x))
+      (#(update-in % [:food] eat-food (first (:bodyParts %))))
+      ;((fn [x] (println x) x))
+      (#(update-in % [:score] increase-score (:food %)))
+      ;((fn [x] (println x) x))
+      (#(update-in % [:bodyParts] append-body-part (:food %)))
+      ;((fn [x] (println x) x))
+      (#(update-in %
+                   [:posTracking]
+                   track-head-pos
+                   (first (:bodyParts %))
+                   (:score %)))
+      (#(update-in % [:bodyParts] move-snake (:movedir %)))
+      ;((fn [x] (println x) x))
+  ))
 
 
 (defn draw-state
   [state]
   (q/background 24 24 24)
   (q/fill 255 165 0)
-  (println (:bodyParts state))
   (doseq [bodyPart (:bodyParts state)]
     (q/rect (:x bodyPart) (:y bodyPart) bodyWidth bodyHeight))
   (q/fill 255 255 255)
   (q/text-size 20)
   (q/text (str (:score state)) 15 30)
-  (doseq [food (:foods state)] ((:renderFn food) bodyWidth bodyHeight)))
-
-
-(defrecord RandomPosFood [x y renderFn])
+  ((get (:food state) :renderFn +) bodyWidth bodyHeight))
 
 
 (defn add-food-when-no-food
-  [foods]
-  (if (empty? foods) (conj foods (rand-pos-food)) foods))
+  [food]
+  (if (some? food) food (create-rand-pos-food)))
 
 
-(defn rand-pos-food
+(defn create-rand-pos-food
   []
-  (let [rand-pos #(rand-int 439)
+  (let [rand-pos #(+ 30 (rand-int 439))
         x (rand-pos)
         y (rand-pos)]
-    (RandomPosFood. x y (partial q/rect x y))))
+    {:x x, :y y, :renderFn (partial q/rect x y)}))
 
 
-(defn check-for-food-eaten
-  [state]
-  (if (detect-collision state (first (:foods state)))
-    (assoc state
-      :foods []
-      :score (inc (:score state)))
-    state))
+(defn eat-food [food head] (if (detect-collision food head) nil food))
 
 
 (defn detect-collision
@@ -83,14 +92,36 @@
        (and (>= (+ bodyHeight bb1y) bb2y) (>= (+ bb2y bodyHeight) bb1y))))
 
 
+(defn increase-score [score food] (if (some? food) score (inc score)))
+
+
+(defn append-body-part
+  [[head & _ :as bodyParts] food]
+  (if (some? food) bodyParts (conj bodyParts head)))
+
+
+
+
+(defn track-head-pos
+  [posTracking head score]
+  (subvec (conj posTracking head)
+          0
+          (if (>= (count posTracking) score) score (count posTracking))))
+
+
+
+
 (defn move-snake
-  [state]
-  (assoc state
-    :bodyParts (conj (let [head (first (:bodyParts state))]
-                       (assoc head
-                         :x (move-x (:moveDir state) (:x head))
-                         :y (move-y (:moveDir state) (:y head))))
-                     (rest (:bodyParts state)))))
+  [[head & rest] movedir]
+  (apply ((conj []
+                (assoc head
+                  :dir movedir
+                  :x (move-x movedir (:x head))
+                  :y (move-y movedir (:y head)))))
+    (if (empty? rest) [] (drop-last rest))))
+
+
+
 
 
 (defn move-x
