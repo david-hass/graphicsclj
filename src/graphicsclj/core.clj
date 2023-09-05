@@ -7,11 +7,11 @@
 
 
 (declare move-snake
+         track-head-state
          create-rand-pos-food
          add-food-when-no-food
          eat-food
          increase-score
-         append-body-part
          detect-collision
          move-x
          move-y)
@@ -23,7 +23,7 @@
   {:food nil,
    :score 0,
    :movedir "a",
-   :posTracking [],
+   :movesTracking [],
    :bodyParts [{:x 396, :y 396}]})
 
 
@@ -46,16 +46,13 @@
       ;((fn [x] (println x) x))
       (#(update-in % [:score] increase-score (:food %)))
       ;((fn [x] (println x) x))
-      (#(update-in % [:bodyParts] append-body-part (:food %)))
-      ;((fn [x] (println x) x))
       (#(update-in %
-                   [:posTracking]
-                   track-head-pos
-                   (first (:bodyParts %))
-                   (:score %)))
-      (#(update-in % [:bodyParts] move-snake (:movedir %)))
-      ;((fn [x] (println x) x))
-  ))
+                   [:movesTracking]
+                   track-head-state
+                   (:score %)
+                   (first (:bodyParts %))))
+      (#(update-in % [:bodyParts 0] move-snake (:movedir %)))
+      ((fn [x] (println x) x))))
 
 
 (defn draw-state
@@ -95,30 +92,26 @@
 (defn increase-score [score food] (if (some? food) score (inc score)))
 
 
-(defn append-body-part
-  [[head & _ :as bodyParts] food]
-  (if (some? food) bodyParts (conj bodyParts head)))
-
-
-
-
-(defn track-head-pos
-  [posTracking head score]
-  (subvec (conj posTracking head)
-          0
-          (if (>= (count posTracking) score) score (count posTracking))))
-
-
+(defn track-head-state
+  [movesTracking score head]
+  ()
+  (take score
+        (concat (let [[cur] movesTracking]
+                  (if (or (nil? cur)
+                              (not (= (:dir cur) (:dir head)))
+                              (or (= (Math/abs (- (:x head) (:x cur))) 12)
+                                  (= (Math/abs (- (:y head) (:y cur))) 12)))
+                    [head]
+                    []))
+                movesTracking)))
 
 
 (defn move-snake
-  [[head & rest] movedir]
-  (apply ((conj []
-                (assoc head
-                  :dir movedir
-                  :x (move-x movedir (:x head))
-                  :y (move-y movedir (:y head)))))
-    (if (empty? rest) [] (drop-last rest))))
+  [head movedir]
+  (assoc head
+    :dir movedir
+    :x (move-x movedir (:x head))
+    :y (move-y movedir (:y head))))
 
 
 
