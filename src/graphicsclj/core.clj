@@ -17,15 +17,22 @@
          track-head-state
          detect-collision)
 
-
+(def ^:const window-height 500)
+(def ^:const window-width 500)
 (def ^:const body-height 12)
 (def ^:const body-width 12)
+(def ^:const step 3)
+(def ^:const max-y
+  (first (filter #(= 0 (mod % step)) (iterate dec window-height))))
+(def ^:const max-x
+  (first (filter #(= 0 (mod % step)) (iterate dec window-width))))
+
 
 
 #_{:clj-kondo/ignore [:unresolved-symbol]}
 (q/defsketch graphicsclj
              :title "Snake"
-             :size [500 500]
+             :size [window-width window-height]
              :setup setup
              :update update-state
              :draw draw-state
@@ -41,28 +48,27 @@
    :score 0,
    :movedir "a",
    :past-moves [],
-   :snake-head {:x 396, :y 396}})
+   :snake-head {:x (- max-x (* step 15)), :y (- max-y (* step 15))}})
 
 
 (defn handle-user-input
   [state event]
   (case (:key event)
-    (:w :up) (assoc state :movedir "w")
-    (:s :down) (assoc state :movedir "s")
-    (:a :left) (assoc state :movedir "a")
-    (:d :right) (assoc state :movedir "d")
+    (:w :up) (if (= (:movedir state) "s") state (assoc state :movedir "w"))
+    (:s :down) (if (= (:movedir state) "w") state (assoc state :movedir "s"))
+    (:a :left) (if (= (:movedir state) "d") state (assoc state :movedir "a"))
+    (:d :right) (if (= (:movedir state) "a")  state (assoc state :movedir "d"))
     state))
 
 
 (defn update-state
   [state]
-  (->
-    state
-    (update-in [:food] add-food-when-no-food)
-    (#(update-in % [:food] eat-food (:snake-head %)))
-    (#(update-in % [:score] increase-score (:food %)))
-    (#(update-in % [:snake-head] move-snake (:movedir %)))
-    (#(update-in % [:past-moves] track-head-state (:score %) (:snake-head %)))))
+  (-> state
+      (update-in [:food] add-food-when-no-food)
+      (#(update-in % [:food] eat-food (:snake-head %)))
+      (#(update-in % [:score] increase-score (:food %)))
+      (#(update-in % [:past-moves] track-head-state (:score %) (:snake-head %)))
+      (#(update-in % [:snake-head] move-snake (:movedir %)))))
 
 
 (defn draw-state
@@ -73,7 +79,6 @@
   (q/text (str (:score state)) 15 30)
   ((get (:food state) :renderFn +) body-width body-height)
   (q/fill 255 165 0)
-  (q/stroke-weight 0)
   (q/rect (:x (:snake-head state))
           (:y (:snake-head state))
           body-width
@@ -89,9 +94,8 @@
 
 (defn create-rand-pos-food
   []
-  (let [rand-pos #(+ 30 (rand-int 439))
-        x (rand-pos)
-        y (rand-pos)]
+  (let [x (+ (* step 10) (rand-int (- window-width (* step 10))))
+        y (+ (* step 10) (rand-int (- window-height (* step 10))))]
     {:x x, :y y, :renderFn (partial q/rect x y)}))
 
 
@@ -113,12 +117,8 @@
   [movedir x]
   (+ x
      (case movedir
-       "d" (case x
-             498 -498
-             3)
-       "a" (case x
-             0 498
-             -3)
+       "d" (if (= x max-x) (- 0 max-x) step)
+       "a" (if (= x 0) max-x (- 0 step))
        0)))
 
 
@@ -126,25 +126,21 @@
   [movedir y]
   (+ y
      (case movedir
-       "w" (case y
-             0 498
-             -3)
-       "s" (case y
-             498 -498
-             3)
+       "w" (if (= y 0) max-y (- 0 step))
+       "s" (if (= y max-y) (- 0 max-y) step)
        0)))
 
 
 (defn track-head-state
   [past-moves score head]
   (take score
-        (concat
-          (let [[cur] past-moves]
-            (cond (nil? cur) [head]
-                  (> (Math/abs (- (:x head) (:x cur))) (- body-width 1)) [head]
-                  (> (Math/abs (- (:y head) (:y cur))) (- body-height 1)) [head]
-                  :else []))
-          past-moves)))
+        (concat (let [[cur] past-moves]
+                  (cond (nil? cur) [head]
+                        (>= (Math/abs (- (:x head) (:x cur))) body-width) [head]
+                        (>= (Math/abs (- (:y head) (:y cur))) body-height)
+                          [head]
+                        :else []))
+                past-moves)))
 
 
 (defn detect-collision
