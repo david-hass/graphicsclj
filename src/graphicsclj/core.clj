@@ -110,7 +110,6 @@
 (defn move-snake
   [head movedir]
   (assoc head
-    :dir movedir
     :x (move-x movedir (:x head))
     :y (move-y movedir (:y head))))
 
@@ -138,17 +137,18 @@
   (take score
         (concat (let [[cur] past-moves]
                   (cond (nil? cur) [head]
-                        (>= (Math/abs (- (:x head) (:x cur))) body-len) [head]
-                        (>= (Math/abs (- (:y head) (:y cur))) body-len) [head]
+                        (>= (Math/abs (- (:x head) (:x cur))) (+ step body-len))
+                          [head]
+                        (>= (Math/abs (- (:y head) (:y cur))) (+ step body-len))
+                          [head]
                         :else []))
                 past-moves)))
 
 
 (defn bite-tail
   [head past-moves]
-  (println head past-moves)
-  
-  (if (some (partial detect-collision head) past-moves) true false))
+  (let [detect-head-collision (partial detect-collision head)]
+    (if (some detect-head-collision (rest past-moves)) true false)))
 
 
 (defn detect-collision
