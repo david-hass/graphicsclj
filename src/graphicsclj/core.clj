@@ -1,10 +1,11 @@
 (ns graphicsclj.core
+  (:gen-class)
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
 
-(def ^:const window-height 500)
-(def ^:const window-width 500)
+(def ^:const window-height 600)
+(def ^:const window-width 600)
 (def ^:const body-len 24)
 (def ^:const step (/ body-len 4))
 (def ^:const max-y
@@ -13,37 +14,79 @@
   (first (filter #(= 0 (mod % step)) (iterate dec window-width))))
 
 
-(declare setup
-         handle-user-input
-         update-state
-         draw-state
-         add-food-when-no-food
-         create-rand-pos-food
-         eat-food
-         increase-score
-         move-snake
-         move-x
-         move-y
-         track-head-state
-         bite-tail
-         detect-collision)
+(defn detect-collision
+  [{bb1x :x, bb1y :y} {bb2x :x, bb2y :y}]
+  (and (and (>= (+ body-len bb1x) bb2x) (>= (+ bb2x body-len) bb1x))
+       (and (>= (+ body-len bb1y) bb2y) (>= (+ bb2y body-len) bb1y))))
 
 
-#_{:clj-kondo/ignore [:unresolved-symbol]}
-(q/defsketch graphicsclj
-             :title "Snake"
-             :size [window-width window-height]
-             :setup setup
-             :update update-state
-             :draw draw-state
-             :key-pressed handle-user-input
-             :features [:keep-on-top]
-             :middleware [m/fun-mode])
+(defn move-x
+  [movedir x]
+  (+ x
+     (case movedir
+       "d" (if (= x max-x) (- 0 max-x) step)
+       "a" (if (= x 0) max-x (- 0 step))
+       0)))
+
+
+(defn move-y
+  [movedir y]
+  (+ y
+     (case movedir
+       "w" (if (= y 0) max-y (- 0 step))
+       "s" (if (= y max-y) (- 0 max-y) step)
+       0)))
+
+
+(defn create-rand-pos-food
+  []
+  (let [x (+ (* step 10) (rand-int (- window-width (* step 20))))
+        y (+ (* step 10) (rand-int (- window-height (* step 20))))]
+    {:x x, :y y}))
+
+
+(defn add-food-when-no-food
+  [food]
+  (if (some? food) food (create-rand-pos-food)))
+
+
+(defn eat-food [food head] (if (detect-collision food head) nil food))
+
+
+(defn increase-score [score food] (if (some? food) score (inc score)))
+
+
+(defn move-snake
+  [head movedir]
+  (assoc head
+    :x (move-x movedir (:x head))
+    :y (move-y movedir (:y head))))
+
+
+
+(defn track-head-state
+  [past-moves score head]
+  (take score
+        (concat (let [[cur] past-moves]
+                  (cond (nil? cur) [head]
+                        (>= (Math/abs (- (:x head) (:x cur))) (+ step body-len))
+                          [head]
+                        (>= (Math/abs (- (:y head) (:y cur))) (+ step body-len))
+                          [head]
+                        :else []))
+                past-moves)))
+
+
+(defn bite-tail
+  [head past-moves]
+  (let [detect-head-collision (partial detect-collision head)]
+    (if (some detect-head-collision (rest past-moves)) true false)))
+
 
 
 (defn setup
   []
-  (q/frame-rate 60)
+  (q/frame-rate 70)
   {:food (create-rand-pos-food),
    :score 0,
    :movedir "a",
@@ -89,70 +132,16 @@
     (q/rect (:x past-move) (:y past-move) body-len body-len)))
 
 
-(defn add-food-when-no-food
-  [food]
-  (if (some? food) food (create-rand-pos-food)))
-
-
-(defn create-rand-pos-food
-  []
-  (let [x (+ (* step 10) (rand-int (- window-width (* step 20))))
-        y (+ (* step 10) (rand-int (- window-height (* step 20))))]
-    {:x x, :y y}))
-
-
-(defn eat-food [food head] (if (detect-collision food head) nil food))
-
-
-(defn increase-score [score food] (if (some? food) score (inc score)))
-
-
-(defn move-snake
-  [head movedir]
-  (assoc head
-    :x (move-x movedir (:x head))
-    :y (move-y movedir (:y head))))
-
-
-(defn move-x
-  [movedir x]
-  (+ x
-     (case movedir
-       "d" (if (= x max-x) (- 0 max-x) step)
-       "a" (if (= x 0) max-x (- 0 step))
-       0)))
-
-
-(defn move-y
-  [movedir y]
-  (+ y
-     (case movedir
-       "w" (if (= y 0) max-y (- 0 step))
-       "s" (if (= y max-y) (- 0 max-y) step)
-       0)))
-
-
-(defn track-head-state
-  [past-moves score head]
-  (take score
-        (concat (let [[cur] past-moves]
-                  (cond (nil? cur) [head]
-                        (>= (Math/abs (- (:x head) (:x cur))) (+ step body-len))
-                          [head]
-                        (>= (Math/abs (- (:y head) (:y cur))) (+ step body-len))
-                          [head]
-                        :else []))
-                past-moves)))
-
-
-(defn bite-tail
-  [head past-moves]
-  (let [detect-head-collision (partial detect-collision head)]
-    (if (some detect-head-collision (rest past-moves)) true false)))
-
-
-(defn detect-collision
-  [{bb1x :x, bb1y :y} {bb2x :x, bb2y :y}]
-  (and (and (>= (+ body-len bb1x) bb2x) (>= (+ bb2x body-len) bb1x))
-       (and (>= (+ body-len bb1y) bb2y) (>= (+ bb2y body-len) bb1y))))
-
+(declare snake)
+(defn -main
+  [& args]
+  (q/defsketch snake
+               :title "Snake"
+               :size [window-width window-height]
+               :setup setup
+               :update update-state
+               :draw draw-state
+               :key-pressed handle-user-input
+               :features [:keep-on-top]
+               :middleware [m/fun-mode])
+  args)
