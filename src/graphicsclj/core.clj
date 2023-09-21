@@ -14,10 +14,14 @@
   (first (filter #(= 0 (mod % step)) (iterate dec window-width))))
 
 
-(defn detect-collision
+(defn detect-1d-collision
+  [bb1x bb2x]
+  (and (>= (+ body-len bb1x) bb2x) (>= (+ bb2x body-len) bb1x)))
+
+
+(defn detect-2d-collision
   [{bb1x :x, bb1y :y} {bb2x :x, bb2y :y}]
-  (and (and (>= (+ body-len bb1x) bb2x) (>= (+ bb2x body-len) bb1x))
-       (and (>= (+ body-len bb1y) bb2y) (>= (+ bb2y body-len) bb1y))))
+  (and (detect-1d-collision bb1x bb2x) (detect-1d-collision bb1y bb2y)))
 
 
 (defn move-x
@@ -50,7 +54,7 @@
   (if (some? food) food (create-rand-pos-food)))
 
 
-(defn eat-food [food head] (if (detect-collision food head) nil food))
+(defn eat-food [food head] (if (detect-2d-collision food head) nil food))
 
 
 (defn increase-score [score food] (if (some? food) score (inc score)))
@@ -79,9 +83,8 @@
 
 (defn bite-tail
   [head past-moves]
-  (let [detect-head-collision (partial detect-collision head)]
+  (let [detect-head-collision (partial detect-2d-collision head)]
     (if (some detect-head-collision (rest past-moves)) true false)))
-
 
 
 (defn setup
